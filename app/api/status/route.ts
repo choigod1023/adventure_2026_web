@@ -16,7 +16,8 @@ export async function OPTIONS() {
 
 // 브라우저(큰 화면)가 폴링 → 최신 상태 반환
 export async function GET() {
-  return NextResponse.json(getStatus() ?? { empty: true }, { headers: CORS });
+  const s = await getStatus();
+  return NextResponse.json(s ?? { empty: true }, { headers: CORS });
 }
 
 // 디바이스(R4)가 평가 때마다 상태 push
@@ -39,6 +40,6 @@ export async function POST(req: NextRequest) {
     ts: typeof body.ts === "number" ? body.ts : undefined,
     receivedAt: Date.now(),
   };
-  setStatus(status);
+  await setStatus(status);
   return NextResponse.json({ ok: true }, { headers: CORS });
 }

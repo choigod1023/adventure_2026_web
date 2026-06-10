@@ -13,7 +13,7 @@ type Status = {
 };
 
 const POLL_MS = 1000; // 폴링 주기
-const STALE_MS = 8000; // 이 시간 넘게 갱신 없으면 '연결 끊김'
+const STALE_MS = 20000; // 이 시간 넘게 갱신 없으면 '연결 끊김' (기기 하트비트 10s 대비 여유)
 
 // 기기 모드 코드 → 클라이언트/시연용 친근한 한글 라벨 (OLED 관리자 화면은 코드 그대로)
 const MODE_LABEL: Record<string, string> = {
