@@ -1,45 +1,71 @@
-// 디바이스(R4)가 POST 한 '최신 상태' 1건을 보관.
-//   · 우선 Vercel KV(Upstash Redis) 사용 → 모든 서버리스 인스턴스가 같은 값을 봄
-//     (인메모리의 "인스턴스마다 따로라 빈 화면" 문제 해결).
-//   · KV 환경변수가 없으면 인메모리로 자동 폴백 (로컬/미설정 시에도 동작).
+// 디바이스(R4)가 POST 한 '최신 상태' 1건을 보관 (서버 측).
+//   · Supabase(Postgres) 의 단일 행(device_status, id=1)에 upsert/select.
+//   · 브라우저는 이 행을 Supabase Realtime 으로 구독 → 기기가 쏘면 즉시 화면 갱신(폴링 X).
+//   · Supabase 환경변수가 없으면 인메모리로 폴백 (로컬/미설정 시에도 동작).
 //
-// Vercel 설정: Storage → Upstash Redis(또는 KV) 생성 → 프로젝트 연결 →
-//   KV_REST_API_URL / KV_REST_API_TOKEN (또는 UPSTASH_REDIS_REST_URL/TOKEN) 자동 주입.
+// Vercel 설정: Marketplace → Supabase 연결 시 자동 주입되는 env:
+//   NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+//   (테이블/RLS/Realtime 은 supabase/schema.sql 을 SQL Editor 에서 1회 실행)
 
-import { Redis } from "@upstash/redis";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export type DeviceStatus = {
-  mode: string; // "BUS" | "SUBWAY" | "CITS" | "SENSOR"
-  line1: string; // 컨텍스트 (정류장/역/교차로)
-  line2: string; // 상세
-  danger: boolean; // 위험 여부
-  ts?: number; // 디바이스 측 타임스탬프(선택)
-  receivedAt: number; // 서버 수신 시각(epoch ms)
+  mode: string;
+  line1: string;
+  line2: string;
+  danger: boolean;
+  ts?: number;
+  receivedAt: number;
 };
 
-const KEY = "device:status";
+const URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-let redis: Redis | null | undefined;
-function getRedis(): Redis | null {
-  if (redis !== undefined) return redis;
-  const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
-  const token =
-    process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
-  redis = url && token ? new Redis({ url, token }) : null;
-  return redis;
+let sb: SupabaseClient | null | undefined;
+function getSb(): SupabaseClient | null {
+  if (sb !== undefined) return sb;
+  sb =
+    URL && SERVICE_KEY
+      ? createClient(URL, SERVICE_KEY, { auth: { persistSession: false } })
+      : null;
+  return sb;
 }
 
-// KV 미설정 시 폴백용 인메모리 (HMR 간 유지)
+// 폴백용 인메모리 (Supabase 미설정 시)
 const g = globalThis as unknown as { __deviceStatus?: DeviceStatus | null };
 
 export async function setStatus(s: DeviceStatus): Promise<void> {
-  const r = getRedis();
-  if (r) await r.set(KEY, s);
-  else g.__deviceStatus = s;
+  const c = getSb();
+  if (!c) {
+    g.__deviceStatus = s;
+    return;
+  }
+  await c.from("device_status").upsert({
+    id: 1,
+    mode: s.mode,
+    line1: s.line1,
+    line2: s.line2,
+    danger: s.danger,
+    ts: s.ts ?? null,
+    received_at: s.receivedAt,
+  });
 }
 
 export async function getStatus(): Promise<DeviceStatus | null> {
-  const r = getRedis();
-  if (r) return ((await r.get<DeviceStatus>(KEY)) as DeviceStatus | null) ?? null;
-  return g.__deviceStatus ?? null;
+  const c = getSb();
+  if (!c) return g.__deviceStatus ?? null;
+  const { data } = await c
+    .from("device_status")
+    .select("*")
+    .eq("id", 1)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    mode: data.mode,
+    line1: data.line1,
+    line2: data.line2,
+    danger: data.danger,
+    ts: data.ts ?? undefined,
+    receivedAt: Number(data.received_at),
+  };
 }

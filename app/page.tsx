@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 type Status = {
   mode?: string;
@@ -12,8 +13,16 @@ type Status = {
   empty?: boolean;
 };
 
-const POLL_MS = 1000; // 폴링 주기
-const STALE_MS = 20000; // 이 시간 넘게 갱신 없으면 '연결 끊김' (기기 하트비트 10s 대비 여유)
+const POLL_MS = 2000; // Supabase 미설정 시 폴백 폴링 주기
+const STALE_MS = 20000; // 이 시간 넘게 갱신 없으면 '연결 끊김'
+
+// Supabase 브라우저 클라이언트 (env 있으면 실시간 구독, 없으면 null → 폴링 폴백)
+const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SB_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabase =
+  SB_URL && SB_ANON
+    ? createClient(SB_URL, SB_ANON, { auth: { persistSession: false } })
+    : null;
 
 // 기기 모드 코드 → 클라이언트/시연용 친근한 한글 라벨 (OLED 관리자 화면은 코드 그대로)
 const MODE_LABEL: Record<string, string> = {
@@ -24,36 +33,79 @@ const MODE_LABEL: Record<string, string> = {
 };
 const modeLabel = (m?: string) => (m ? (MODE_LABEL[m] ?? m) : "");
 
+// DB 행(received_at) / API(receivedAt) 양쪽 형태를 Status 로 정규화
+function normalize(x: Record<string, unknown> | null): Status | null {
+  if (!x || x.empty) return null;
+  return {
+    mode: x.mode as string,
+    line1: x.line1 as string,
+    line2: x.line2 as string,
+    danger: Boolean(x.danger),
+    ts: (x.ts as number) ?? undefined,
+    receivedAt: Number(x.received_at ?? x.receivedAt ?? 0) || undefined,
+  };
+}
+
 export default function Page() {
   const [status, setStatus] = useState<Status | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [err, setErr] = useState(false);
 
   useEffect(() => {
     let alive = true;
+    const clock = setInterval(() => setNow(Date.now()), 1000);
+
+    if (supabase) {
+      // 실시간 모드: 초기 1회 로드 + 변경 구독
+      supabase
+        .from("device_status")
+        .select("*")
+        .eq("id", 1)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (alive) setStatus(normalize(data));
+        });
+      const ch = supabase
+        .channel("device_status")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "device_status",
+            filter: "id=eq.1",
+          },
+          (payload) => {
+            if (alive) setStatus(normalize(payload.new as Record<string, unknown>));
+          },
+        )
+        .subscribe();
+      return () => {
+        alive = false;
+        clearInterval(clock);
+        supabase.removeChannel(ch);
+      };
+    }
+
+    // 폴백: /api/status 폴링
     const tick = async () => {
       try {
         const r = await fetch("/api/status", { cache: "no-store" });
-        const j = (await r.json()) as Status;
-        if (alive) {
-          setStatus(j);
-          setErr(false);
-        }
+        const j = await r.json();
+        if (alive) setStatus(normalize(j));
       } catch {
-        if (alive) setErr(true);
+        /* noop */
       }
     };
     tick();
     const poll = setInterval(tick, POLL_MS);
-    const clock = setInterval(() => setNow(Date.now()), 1000);
     return () => {
       alive = false;
-      clearInterval(poll);
       clearInterval(clock);
+      clearInterval(poll);
     };
   }, []);
 
-  const empty = !status || status.empty;
+  const empty = !status;
   const danger = !!status?.danger;
   const stale = status?.receivedAt ? now - status.receivedAt > STALE_MS : true;
   const agoSec = status?.receivedAt
@@ -102,11 +154,8 @@ export default function Page() {
         </>
       )}
       <div className="foot">
-        {err
-          ? "서버 연결 오류"
-          : agoSec === null
-            ? ""
-            : `갱신 ${agoSec}s 전`}
+        {agoSec === null ? "" : `갱신 ${agoSec}s 전`}
+        {supabase ? " · 실시간" : ""}
       </div>
     </main>
   );
