@@ -15,6 +15,15 @@ type Status = {
 const POLL_MS = 1000; // 폴링 주기
 const STALE_MS = 8000; // 이 시간 넘게 갱신 없으면 '연결 끊김'
 
+// 기기 모드 코드 → 클라이언트/시연용 친근한 한글 라벨 (OLED 관리자 화면은 코드 그대로)
+const MODE_LABEL: Record<string, string> = {
+  BUS: "버스",
+  SUBWAY: "지하철",
+  CITS: "보행자 신호등",
+  SENSOR: "주변 감지",
+};
+const modeLabel = (m?: string) => (m ? (MODE_LABEL[m] ?? m) : "");
+
 export default function Page() {
   const [status, setStatus] = useState<Status | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -59,7 +68,7 @@ export default function Page() {
       ) : (
         <>
           <div className="mode">
-            {status!.mode}
+            {modeLabel(status!.mode)}
             {stale ? " · 연결 끊김" : ""}
           </div>
           <div className="line1">{status!.line1 || "—"}</div>
