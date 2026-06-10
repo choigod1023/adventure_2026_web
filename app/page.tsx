@@ -56,13 +56,38 @@ export default function Page() {
   const empty = !status || status.empty;
   const danger = !!status?.danger;
   const stale = status?.receivedAt ? now - status.receivedAt > STALE_MS : true;
-  const active = danger && !stale;
   const agoSec = status?.receivedAt
     ? Math.max(0, Math.round((now - status.receivedAt) / 1000))
     : null;
 
+  // 화면 색: CITS(보행자 신호등)는 '실제 신호색'을 따라감 (녹색→초록, 적색→빨강).
+  //   그 외 모드는 danger=true 일 때만 빨강 점멸.
+  const line2 = status?.line2 ?? "";
+  const isCits = status?.mode === "CITS";
+  const citsGreen = isCits && line2.includes("녹색");
+  const citsRed = isCits && line2.includes("적색");
+
+  let theme = ""; // "" 평상 / go 초록점멸 / stop 빨강 / danger 빨강점멸
+  let stateText = "안전";
+  let stateClass = "";
+  if (stale) {
+    stateText = "신호 없음";
+  } else if (citsGreen) {
+    theme = "go";
+    stateText = "보행 녹색 — 건너는 중 주의";
+    stateClass = "ok";
+  } else if (citsRed) {
+    theme = "stop";
+    stateText = "보행 적색 — 정지";
+    stateClass = "on";
+  } else if (danger) {
+    theme = "danger";
+    stateText = "⚠ 위험 — 고개 들어!";
+    stateClass = "on";
+  }
+
   return (
-    <main className={`screen ${active ? "danger" : ""}`}>
+    <main className={`screen ${theme}`}>
       {empty ? (
         <div className="big muted">대기 중…</div>
       ) : (
@@ -73,9 +98,7 @@ export default function Page() {
           </div>
           <div className="line1">{status!.line1 || "—"}</div>
           <div className="line2">{status!.line2 || ""}</div>
-          <div className={`state ${active ? "on" : ""}`}>
-            {stale ? "신호 없음" : active ? "⚠ 위험 — 고개 들어!" : "안전"}
-          </div>
+          <div className={`state ${stateClass}`}>{stateText}</div>
         </>
       )}
       <div className="foot">

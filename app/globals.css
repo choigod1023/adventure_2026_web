@@ -34,6 +34,19 @@ body {
     background: #7f1d1d;
   }
 }
+/* CITS 보행 녹색 → 초록 점멸 (보행 신호처럼) */
+.screen.go {
+  animation: flashGreen 0.7s steps(1, end) infinite;
+}
+@keyframes flashGreen {
+  50% {
+    background: #14532d;
+  }
+}
+/* CITS 보행 적색 → 빨강(정지, 점멸 없음) */
+.screen.stop {
+  background: #7f1d1d;
+}
 
 .mode {
   font-size: 4vw;
@@ -62,6 +75,9 @@ body {
 }
 .state.on {
   color: #fca5a5;
+}
+.state.ok {
+  color: #4ade80;
 }
 .big {
   font-size: 8vw;
