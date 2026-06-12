@@ -106,7 +106,6 @@ export default function Page() {
   }, []);
 
   const empty = !status;
-  const danger = !!status?.danger;
   const stale = status?.receivedAt ? now - status.receivedAt > STALE_MS : true;
   const agoSec = status?.receivedAt
     ? Math.max(0, Math.round((now - status.receivedAt) / 1000))
@@ -118,6 +117,12 @@ export default function Page() {
   const isCits = status?.mode === "CITS";
   const citsGreen = isCits && line2.includes("녹색");
   const citsRed = isCits && line2.includes("적색");
+
+  const isBus = status?.mode === "BUS";
+  const isSubway = status?.mode === "SUBWAY";
+  const busDanger = isBus && (line2.includes("곧 도착") || (line2.includes("출발") && !line2.includes("출발대기")));
+  const subwayDanger = isSubway && (line2.includes("곧 도착") || line2.includes("당역"));
+  const danger = !!status?.danger || busDanger || subwayDanger;
 
   let theme = ""; // "" 평상 / go 초록점멸 / stop 빨강 / danger 빨강점멸
   let stateText = "안전";
