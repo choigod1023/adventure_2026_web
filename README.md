@@ -3,6 +3,8 @@
 UNO R4 WiFi 기기가 보낸 경고 상태를 **폰/태블릿/모니터 브라우저에 큰 글씨로** 표시하는 Next.js 앱.
 작은 OLED 대신(또는 함께) 멀리서도 보이게 하는 보조 디스플레이.
 
+🔗 **라이브 데모: [adventure-2026-web.vercel.app](https://adventure-2026-web.vercel.app)**
+
 ## 구조 (Supabase Realtime)
 
 - `app/page.tsx` — 큰 디스플레이. **Supabase Realtime 구독** → 기기가 쏘는 즉시 갱신(폴링 X).
@@ -25,15 +27,13 @@ UNO R4 WiFi 기기가 보낸 경고 상태를 **폰/태블릿/모니터 브라�
 ## 로컬 실행
 
 ```bash
-cd web
 npm install
-npm run dev        # http://localhost:3000  (env 없으면 폴링 폴백)
+npm run dev        # http://localhost:3000  (env 없으면 2초 폴링 폴백)
 ```
 
 ## Vercel 배포
 
 ```bash
-cd web
 vercel --prod
 ```
 
