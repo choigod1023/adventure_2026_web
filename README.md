@@ -1,5 +1,7 @@
 # adventure_2026 web — 큰 화면 디스플레이
 
+**한국어** · [日本語](README.ja.md) · [English](README.en.md)
+
 UNO R4 WiFi 기기가 보낸 경고 상태를 **폰/태블릿/모니터 브라우저에 큰 글씨로** 표시하는 Next.js 앱.
 작은 OLED 대신(또는 함께) 멀리서도 보이게 하는 보조 디스플레이.
 
